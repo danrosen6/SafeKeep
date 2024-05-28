@@ -28,4 +28,4 @@ pip freeze > requirements.txt
 
 To install all dependencies 
 in bash
-pip install -r requirements.txt
+pip install -r requirements.txt 
