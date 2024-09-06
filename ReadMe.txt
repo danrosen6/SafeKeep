@@ -87,7 +87,12 @@ Project Setup Guide
         Free usage of our API is limited to 50,000 API requests per month.
         If you exceed that limit, we'll return a 429 HTTP status code to you.
 
-7. Running Your Application
+    ClamAV
+    https://docs.clamav.net/manual/Usage/Configuration.html
+
+7. Refer to ClamAV document.
+
+8. Running Your Application
 
     With the virtual environment activated, change directory to src and 
     run Python scripts as follows. This ensures that the script uses the 
