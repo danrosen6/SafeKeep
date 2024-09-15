@@ -1,4 +1,6 @@
 /venv
 /src/gui/__pycache__
 /src/virusScan/__pycache__
+/src/config/__pycache__
+/src/config/config.ini
 .env
