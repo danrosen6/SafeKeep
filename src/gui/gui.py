@@ -19,22 +19,28 @@ class MainWindow(QWidget):
         self.scanner_thread = None
         self.freshclam_thread = None
         self.config_manager = config.config_manager.ConfigManager()
+
+        # Load configurations
         self.clamscan_path = self.config_manager.get_clamav_path()
         self.freshclam_path = self.config_manager.get_freshclam_path()
         self.database_path = self.config_manager.get_database_path()
-        self.init_ui()
+        self.quarantine_path = self.config_manager.get_quarantine_path()
 
-        # Check if ClamAV path is configured
+        # Check if paths are configured, if not, prompt the user
         if not self.clamscan_path or not os.path.exists(self.clamscan_path):
             self.prompt_for_clamav_path()
 
-        # Check if freshclam path is configured
         if not self.freshclam_path or not os.path.exists(self.freshclam_path):
             self.prompt_for_freshclam_path()
 
-        # Check if database path is configured
         if not self.database_path or not os.path.exists(self.database_path):
             self.prompt_for_database_path()
+
+        if not self.quarantine_path or not os.path.exists(self.quarantine_path):
+            self.prompt_for_quarantine_path()
+
+        # Initialize the UI after configurations are set
+        self.init_ui()
 
         # Update the virus database info
         self.update_database_info()
@@ -55,6 +61,10 @@ class MainWindow(QWidget):
         change_database_path_action = QAction('Change Database Path', self)
         change_database_path_action.triggered.connect(self.prompt_for_database_path)
         settings_menu.addAction(change_database_path_action)
+
+        change_quarantine_path_action = QAction('Change Quarantine Directory', self)
+        change_quarantine_path_action.triggered.connect(self.prompt_for_quarantine_path)
+        settings_menu.addAction(change_quarantine_path_action)
 
         # Path input
         self.path_label = QLabel('Select File or Directory:')
@@ -87,6 +97,10 @@ class MainWindow(QWidget):
         self.update_database_button = QPushButton('Update Virus Database')
         self.update_database_button.clicked.connect(self.update_database)
 
+        # Quarantine Management
+        self.view_quarantine_button = QPushButton('View Quarantined Files')
+        self.view_quarantine_button.clicked.connect(self.view_quarantined_files)
+
         # Layouts
         path_layout = QHBoxLayout()
         path_layout.addWidget(self.path_input)
@@ -108,6 +122,7 @@ class MainWindow(QWidget):
         main_layout.addWidget(self.progress_bar)
         main_layout.addLayout(button_layout)
         main_layout.addLayout(database_layout)
+        main_layout.addWidget(self.view_quarantine_button)
         main_layout.addWidget(self.results_display)
 
         self.setLayout(main_layout)
@@ -134,7 +149,7 @@ class MainWindow(QWidget):
                     "Operation Cancelled",
                     "ClamAV path configuration is required to proceed."
                 )
-                break  # Exit the loop if the user cancels the dialog
+                continue  # Prompt again
             elif os.path.basename(file_path).lower() == 'clamscan.exe':
                 self.clamscan_path = file_path
                 self.config_manager.set_clamav_path(file_path)
@@ -165,7 +180,7 @@ class MainWindow(QWidget):
                     "Operation Cancelled",
                     "Freshclam path configuration is required to proceed."
                 )
-                break  # Exit the loop if the user cancels the dialog
+                continue  # Prompt again
             elif os.path.basename(file_path).lower() == 'freshclam.exe':
                 self.freshclam_path = file_path
                 self.config_manager.set_freshclam_path(file_path)
@@ -195,7 +210,7 @@ class MainWindow(QWidget):
                     "Operation Cancelled",
                     "Database path configuration is required to proceed."
                 )
-                break  # Exit the loop if the user cancels the dialog
+                continue  # Prompt again
             else:
                 if os.path.exists(directory):
                     self.database_path = directory
@@ -207,6 +222,86 @@ class MainWindow(QWidget):
                         "Invalid Selection",
                         "Please select a valid directory."
                     )
+
+    def prompt_for_quarantine_path(self):
+        while True:
+            QMessageBox.information(
+                self,
+                "Quarantine Directory Required",
+                "Please select or create a directory to be used as the quarantine location."
+            )
+            directory = QFileDialog.getExistingDirectory(
+                self,
+                "Select Quarantine Directory",
+                ""
+            )
+            if directory:
+                if os.path.exists(directory):
+                    self.quarantine_path = directory
+                    # Set directory permissions to restrict access
+                    os.chmod(self.quarantine_path, 0o700)
+                    self.config_manager.set_quarantine_path(directory)
+                    break  # Valid directory selected
+                else:
+                    QMessageBox.critical(
+                        self,
+                        "Invalid Selection",
+                        "Please select a valid directory."
+                    )
+            else:
+                # User did not select a directory, offer to create a default one
+                create_new = QMessageBox.question(
+                    self,
+                    "Create Quarantine Directory",
+                    "No directory selected. Would you like to create a default quarantine directory?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if create_new == QMessageBox.Yes:
+                    self.setup_quarantine_directory()
+                    break
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Quarantine Directory Required",
+                        "A quarantine directory is required to proceed."
+                    )
+                    # Loop again to prompt for directory
+
+    def setup_quarantine_directory(self):
+        default_quarantine_path = os.path.join(os.path.expanduser('~'), 'SafeKeep_Quarantine')
+        try:
+            if not os.path.exists(default_quarantine_path):
+                os.makedirs(default_quarantine_path)
+            # Set directory permissions to restrict access
+            os.chmod(default_quarantine_path, 0o700)
+            self.quarantine_path = default_quarantine_path
+            self.config_manager.set_quarantine_path(self.quarantine_path)
+            QMessageBox.information(
+                self,
+                "Quarantine Directory Created",
+                f"A default quarantine directory has been created at:\n{default_quarantine_path}"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error Creating Quarantine Directory",
+                f"An error occurred while creating the quarantine directory:\n{str(e)}"
+            )
+            # Prompt the user again
+            self.prompt_for_quarantine_path()
+
+    def view_quarantined_files(self):
+        if not self.quarantine_path or not os.path.exists(self.quarantine_path):
+            QMessageBox.warning(self, "Quarantine Directory Not Found", "The quarantine directory does not exist.")
+            return
+
+        files = os.listdir(self.quarantine_path)
+        if not files:
+            QMessageBox.information(self, "Quarantine", "No files in quarantine.")
+            return
+
+        quarantined_files = '\n'.join(files)
+        QMessageBox.information(self, "Quarantined Files", f"The following files are quarantined:\n{quarantined_files}")
 
     def check_input(self):
         if self.path_input.text():
@@ -256,7 +351,7 @@ class MainWindow(QWidget):
         self.progress_bar.setValue(0)
 
         # Create a ScannerThread instance
-        self.scanner_thread = ScannerThread(self.clamscan_path, path)
+        self.scanner_thread = ScannerThread(self.clamscan_path, path, self.quarantine_path)
         self.scanner_thread.scan_progress.connect(self.update_progress)
         self.scanner_thread.progress_update.connect(self.update_progress_bar)
         self.scanner_thread.scan_finished.connect(self.display_results)
@@ -287,9 +382,14 @@ class MainWindow(QWidget):
             path = self.path_input.text()
             self.results_display.append(f"No threats detected in {path}")
         else:
-            # Infected files found
-            self.results_display.append("Threats detected in the following files:")
+            # Infected files were quarantined
+            self.results_display.append("The following threats were detected and quarantined:")
             self.results_display.append(results)
+            QMessageBox.warning(
+                self,
+                "Threats Detected",
+                "Threats were detected and quarantined. Please review them in the quarantine directory."
+            )
 
         self.scan_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
@@ -298,10 +398,11 @@ class MainWindow(QWidget):
     @Slot(str)
     def handle_error(self, error_message):
         self.results_display.append(f"\nError: {error_message}")
+        QMessageBox.critical(self, "Error", error_message)
         self.scan_button.setEnabled(True)
         self.cancel_button.setEnabled(False)
-        self.update_database_button.setEnabled(True)
         self.progress_bar.setValue(0)
+
 
     def update_database_info(self):
         if self.database_path and os.path.exists(self.database_path):

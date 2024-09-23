@@ -122,3 +122,6 @@ Summary of Commands
 
     Run a test scan:
     .\clamscan.exe C:\path\to\your\file_or_directory
+
+    Test sample of infected file
+    https://gist.github.com/mikecastrodemaria/0843f8828fef7c60558a58248fcb724c

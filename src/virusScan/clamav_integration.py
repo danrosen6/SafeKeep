@@ -1,6 +1,11 @@
 import subprocess
 import os
+import re
+import logging
 from PySide6.QtCore import QThread, Signal
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 class ScannerThread(QThread):
     """
@@ -17,7 +22,7 @@ class ScannerThread(QThread):
     progress_update = Signal(int)
     scan_error = Signal(str)
 
-    def __init__(self, clamscan_path, scan_path):
+    def __init__(self, clamscan_path, scan_path, quarantine_path):
         """
         Initializes the ScannerThread.
 
@@ -28,6 +33,7 @@ class ScannerThread(QThread):
         super().__init__()
         self.clamscan_path = clamscan_path
         self.scan_path = scan_path
+        self.quarantine_path = quarantine_path
         self._is_running = True
         self.process = None
         self.total_files = 0
@@ -51,7 +57,6 @@ class ScannerThread(QThread):
         command = [
             self.clamscan_path,
             '-r',             # Enable recursive scanning
-            '--bell',         # Beep when a virus is found
             normalized_scan_path
         ]
 
@@ -75,30 +80,70 @@ class ScannerThread(QThread):
                     self.scan_finished.emit("Scan cancelled by user.")
                     return
                 line = line.strip()
-                if line:
-                    # Check if line indicates a file scan result
-                    if line.endswith("OK") or "FOUND" in line:
-                        self.scanned_files += 1
-                        self.update_progress_bar()
-                        # Check if the line indicates an infected file
-                        if "FOUND" in line:
-                            self.infected_files.append(line)
-                    self.scan_progress.emit(line)
+                # Check if line indicates a file scan result
+                if line.endswith("OK") or "FOUND" in line:
+                    self.scanned_files += 1
+                    self.update_progress_bar()
+                    # Check if the line indicates an infected file
+                    if "FOUND" in line:
+                        # Extract the infected file path using a regex
+                        match = re.match(r'^(.*?): (.*) FOUND$', line)
+                        if match:
+                            infected_file = match.group(1)
+                            self.infected_files.append(infected_file)
+                            self.quarantine_file(infected_file)
+                        else:
+                            self.scan_error.emit(f"Failed to parse infected file from line: {line}")
 
             self.process.wait()
 
             # Capture the final output and emit the appropriate signal
             stdout, stderr = self.process.communicate()
+
             if stderr:
-                self.scan_error.emit(stderr)
+                # Check if stderr contains actual error messages
+                stderr = stderr.strip()
+                if stderr:
+                    self.scan_error.emit(stderr)
+                    return
+
+            # Prepare the results message
+            if self.infected_files:
+                results_message = '\n'.join([f"{file} was quarantined." for file in self.infected_files])
             else:
-                # Send the infected files list to the main window
-                self.scan_finished.emit('\n'.join(self.infected_files))
+                results_message = ''
+            # Send the results to the main window
+            self.scan_finished.emit(results_message)
 
         except Exception as e:
             # Emit any exceptions that occur during scanning
-            error_message = f"An error occurred: {str(e)}"
+            error_message = f"An error occurred: {repr(e)}"
             self.scan_error.emit(error_message)
+
+    def quarantine_file(self, file_path):
+        logging.debug(f"Attempting to quarantine file: {file_path}")
+        try:
+            if os.path.exists(file_path):
+                logging.debug("File exists, proceeding with quarantine.")
+                # Ensure quarantine directory exists
+                if not os.path.exists(self.quarantine_path):
+                    logging.debug("Quarantine directory does not exist, creating it.")
+                    os.makedirs(self.quarantine_path)
+                    os.chmod(self.quarantine_path, 0o700)
+                # Move the infected file to the quarantine directory
+                file_name = os.path.basename(file_path)
+                quarantine_file_path = os.path.join(self.quarantine_path, file_name)
+                logging.debug(f"Moving file to quarantine path: {quarantine_file_path}")
+                os.rename(file_path, quarantine_file_path)
+                # Set file permissions to read-only
+                os.chmod(quarantine_file_path, 0o400)
+                logging.debug("File quarantined successfully.")
+            else:
+                logging.error(f"File not found: {file_path}")
+                self.scan_error.emit(f"File not found: {file_path}")
+        except Exception as e:
+            logging.exception(f"Failed to quarantine {file_path}")
+            self.scan_error.emit(f"Failed to quarantine {file_path}: {repr(e)}")
 
     def count_files(self, path):
         """
