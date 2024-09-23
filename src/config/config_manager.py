@@ -22,3 +22,23 @@ class ConfigManager:
         self.config['ClamAV']['clamscan_path'] = path
         with open(self.config_file, 'w') as configfile:
             self.config.write(configfile)
+
+    def get_freshclam_path(self):
+        return self.config.get('ClamAV', 'freshclam_path', fallback=None)
+
+    def set_freshclam_path(self, path):
+        if 'ClamAV' not in self.config:
+            self.config['ClamAV'] = {}
+        self.config['ClamAV']['freshclam_path'] = path
+        with open(self.config_file, 'w') as configfile:
+            self.config.write(configfile)
+
+    def get_database_path(self):
+        return self.config.get('ClamAV', 'database_path', fallback=None)
+
+    def set_database_path(self, path):
+        if 'ClamAV' not in self.config:
+            self.config['ClamAV'] = {}
+        self.config['ClamAV']['database_path'] = path
+        with open(self.config_file, 'w') as configfile:
+            self.config.write(configfile)
