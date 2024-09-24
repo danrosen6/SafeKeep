@@ -1,4 +1,12 @@
-# config/config_manager.py
+"""
+Configuration Manager Module for SafeKeep Antivirus.
+
+This module defines the ConfigManager class, which handles reading, writing, and
+managing configuration settings for the SafeKeep Antivirus application. It provides
+methods to get and set paths for ClamAV executables, the virus database, and the
+quarantine directory. Additionally, it includes user interface prompts to allow
+users to configure these paths through dialog windows.
+"""
 
 import os
 import configparser
@@ -8,15 +16,38 @@ from PySide6.QtWidgets import (
 )
 
 
+# Define the path to the configuration file
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
 
+
 class ConfigManager:
+    """
+    Manages configuration settings for the SafeKeep Antivirus application.
+
+    The ConfigManager handles loading and saving configuration settings from a
+    configuration file. It provides methods to get and set paths related to ClamAV,
+    the virus database, and the quarantine directory. It also facilitates user prompts
+    to configure these paths through graphical dialogs.
+    """
+
     def __init__(self):
+        """
+        Initialize the ConfigManager.
+
+        Loads the existing configuration from the configuration file if it exists.
+        If the configuration file does not exist, it initializes an empty configuration.
+        """
         self.config = configparser.ConfigParser()
         self.config_file = CONFIG_FILE
         self.load_config()
 
     def load_config(self):
+        """
+        Load configuration settings from the configuration file.
+
+        If the configuration file exists, it reads the settings. Otherwise, it logs
+        that no existing configuration file was found.
+        """
         try:
             if os.path.exists(self.config_file):
                 self.config.read(self.config_file)
@@ -27,6 +58,12 @@ class ConfigManager:
             logging.error(f"Error loading configuration: {e}")
 
     def save_config(self):
+        """
+        Save the current configuration settings to the configuration file.
+
+        Writes the configuration data to the file specified by self.config_file.
+        Logs an error if the save operation fails.
+        """
         try:
             with open(self.config_file, 'w') as configfile:
                 self.config.write(configfile)
@@ -34,48 +71,120 @@ class ConfigManager:
         except Exception as e:
             logging.error(f"Error saving configuration: {e}")
 
-    # ClamAV Path
+    # ============================
+    # ClamAV Path Configuration
+    # ============================
+
     def get_clamav_path(self):
+        """
+        Retrieve the path to the ClamAV 'clamscan' executable.
+
+        Returns:
+            str or None: The path to 'clamscan.exe' if configured, otherwise None.
+        """
         return self.config.get('ClamAV', 'clamscan_path', fallback=None)
 
     def set_clamav_path(self, path):
+        """
+        Set the path to the ClamAV 'clamscan' executable.
+
+        Args:
+            path (str): The full path to 'clamscan.exe'.
+        """
         if 'ClamAV' not in self.config:
             self.config['ClamAV'] = {}
         self.config['ClamAV']['clamscan_path'] = path
         self.save_config()
 
-    # Freshclam Path
+    # ==============================
+    # Freshclam Path Configuration
+    # ==============================
+
     def get_freshclam_path(self):
+        """
+        Retrieve the path to the ClamAV 'freshclam' executable.
+
+        Returns:
+            str or None: The path to 'freshclam.exe' if configured, otherwise None.
+        """
         return self.config.get('ClamAV', 'freshclam_path', fallback=None)
 
     def set_freshclam_path(self, path):
+        """
+        Set the path to the ClamAV 'freshclam' executable.
+
+        Args:
+            path (str): The full path to 'freshclam.exe'.
+        """
         if 'ClamAV' not in self.config:
             self.config['ClamAV'] = {}
         self.config['ClamAV']['freshclam_path'] = path
         self.save_config()
 
-    # Database Path
+    # ===============================
+    # Virus Database Path Configuration
+    # ===============================
+
     def get_database_path(self):
+        """
+        Retrieve the path to the ClamAV virus definition database.
+
+        Returns:
+            str or None: The path to the database directory if configured, otherwise None.
+        """
         return self.config.get('ClamAV', 'database_path', fallback=None)
 
     def set_database_path(self, path):
+        """
+        Set the path to the ClamAV virus definition database.
+
+        Args:
+            path (str): The full path to the database directory.
+        """
         if 'ClamAV' not in self.config:
             self.config['ClamAV'] = {}
         self.config['ClamAV']['database_path'] = path
         self.save_config()
 
-    # Quarantine Path
+    # ===============================
+    # Quarantine Directory Configuration
+    # ===============================
+
     def get_quarantine_path(self):
+        """
+        Retrieve the path to the quarantine directory.
+
+        Returns:
+            str or None: The path to the quarantine directory if configured, otherwise None.
+        """
         return self.config.get('Quarantine', 'quarantine_path', fallback=None)
 
     def set_quarantine_path(self, path):
+        """
+        Set the path to the quarantine directory.
+
+        Args:
+            path (str): The full path to the quarantine directory.
+        """
         if 'Quarantine' not in self.config:
             self.config['Quarantine'] = {}
         self.config['Quarantine']['quarantine_path'] = path
         self.save_config()
 
-    # Prompt methods
+    # ====================
+    # User Prompt Methods
+    # ====================
+
     def prompt_for_clamav_path(self, parent):
+        """
+        Prompt the user to select the ClamAV 'clamscan.exe' executable.
+
+        Opens a file dialog to allow the user to locate 'clamscan.exe'. Continues to prompt
+        until a valid executable is selected or the user cancels the operation.
+
+        Args:
+            parent (QWidget): The parent widget for the dialog.
+        """
         while True:
             QMessageBox.information(
                 parent,
@@ -106,6 +215,15 @@ class ConfigManager:
                 )
 
     def prompt_for_freshclam_path(self, parent):
+        """
+        Prompt the user to select the ClamAV 'freshclam.exe' executable.
+
+        Opens a file dialog to allow the user to locate 'freshclam.exe'. Continues to prompt
+        until a valid executable is selected or the user cancels the operation.
+
+        Args:
+            parent (QWidget): The parent widget for the dialog.
+        """
         while True:
             QMessageBox.information(
                 parent,
@@ -136,6 +254,16 @@ class ConfigManager:
                 )
 
     def prompt_for_database_path(self, parent):
+        """
+        Prompt the user to select the ClamAV virus definition database directory.
+
+        Opens a directory selection dialog to allow the user to locate the database
+        directory. Continues to prompt until a valid directory is selected or the user
+        cancels the operation.
+
+        Args:
+            parent (QWidget): The parent widget for the dialog.
+        """
         while True:
             QMessageBox.information(
                 parent,
@@ -166,6 +294,16 @@ class ConfigManager:
                     )
 
     def prompt_for_quarantine_path(self, parent):
+        """
+        Prompt the user to select or create a quarantine directory.
+
+        Opens a directory selection dialog to allow the user to choose a quarantine
+        directory. If the user does not select a directory, offers to create a default
+        quarantine directory.
+
+        Args:
+            parent (QWidget): The parent widget for the dialog.
+        """
         while True:
             QMessageBox.information(
                 parent,
@@ -181,7 +319,15 @@ class ConfigManager:
                 if os.path.exists(directory):
                     self.set_quarantine_path(directory)
                     # Set directory permissions to restrict access
-                    os.chmod(directory, 0o700)
+                    try:
+                        os.chmod(directory, 0o700)
+                    except Exception as e:
+                        logging.error(f"Failed to set permissions on quarantine directory: {e}")
+                        QMessageBox.warning(
+                            parent,
+                            "Permission Error",
+                            f"Failed to set permissions on quarantine directory:\n{e}"
+                        )
                     break  # Valid directory selected
                 else:
                     QMessageBox.critical(
@@ -209,6 +355,16 @@ class ConfigManager:
                     # Loop again to prompt for directory
 
     def setup_quarantine_directory(self, parent):
+        """
+        Create a default quarantine directory in the user's home directory.
+
+        Attempts to create a directory named 'SafeKeep_Quarantine' in the user's home
+        directory. Sets appropriate permissions and updates the configuration. If creation
+        fails, displays an error message and re-prompts the user.
+
+        Args:
+            parent (QWidget): The parent widget for the dialog.
+        """
         default_quarantine_path = os.path.join(os.path.expanduser('~'), 'SafeKeep_Quarantine')
         try:
             if not os.path.exists(default_quarantine_path):
