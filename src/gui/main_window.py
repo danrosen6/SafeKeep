@@ -11,9 +11,9 @@ from PySide6.QtWidgets import QMainWindow, QTabWidget, QMenuBar
 from PySide6.QtGui import QAction
 import logging
 from config.config_manager import ConfigManager
-from gui.virus_scanner_widget import VirusScannerWidget
-from gui.database_update_widget import DatabaseUpdateWidget
-from gui.quarantine_widget import QuarantineWidget
+from gui.virus_scan.virus_scanner_widget import VirusScannerWidget
+from gui.virus_scan.database_update_widget import DatabaseUpdateWidget
+from gui.virus_scan.quarantine_widget import QuarantineWidget
 
 
 class MainWindow(QMainWindow):

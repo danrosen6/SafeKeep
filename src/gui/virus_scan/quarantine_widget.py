@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QPushButton, QMessageBox, QFileDialog
 )
 from PySide6.QtCore import Slot
-from modules.quarantine_manager import QuarantineManager
+from modules.virus_scan.quarantine_manager import QuarantineManager
 
 
 class QuarantineWidget(QWidget):

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Slot
 from config.config_manager import ConfigManager
-from modules.database_updater import DatabaseUpdateThread
+from modules.virus_scan.database_updater import DatabaseUpdateThread
 
 
 class DatabaseUpdateWidget(QWidget):

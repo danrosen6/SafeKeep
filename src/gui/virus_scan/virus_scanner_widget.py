@@ -15,9 +15,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QAction
 from PySide6.QtCore import Qt, Slot
-from modules.virus_scanner import ScannerThread
-from modules.database_updater import DatabaseUpdateThread
-from gui.quarantine_widget import QuarantineWidget
+from modules.virus_scan.virus_scanner import ScannerThread
+from modules.virus_scan.database_updater import DatabaseUpdateThread
+from gui.virus_scan.quarantine_widget import QuarantineWidget
 from config.config_manager import ConfigManager
 
 class VirusScannerWidget(QWidget):
