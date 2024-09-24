@@ -11,31 +11,17 @@ users to configure these paths through dialog windows.
 import os
 import configparser
 import logging
-from PySide6.QtWidgets import (
-    QFileDialog, QMessageBox,
-)
-
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 # Define the path to the configuration file
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
 
-
 class ConfigManager:
-    """
-    Manages configuration settings for the SafeKeep Antivirus application.
-
-    The ConfigManager handles loading and saving configuration settings from a
-    configuration file. It provides methods to get and set paths related to ClamAV,
-    the virus database, and the quarantine directory. It also facilitates user prompts
-    to configure these paths through graphical dialogs.
-    """
-
     def __init__(self):
         """
         Initialize the ConfigManager.
-
         Loads the existing configuration from the configuration file if it exists.
-        If the configuration file does not exist, it initializes an empty configuration.
+        If the configuration file does not exist, prompts the user to create one.
         """
         self.config = configparser.ConfigParser()
         self.config_file = CONFIG_FILE
@@ -44,18 +30,39 @@ class ConfigManager:
     def load_config(self):
         """
         Load configuration settings from the configuration file.
-
-        If the configuration file exists, it reads the settings. Otherwise, it logs
-        that no existing configuration file was found.
+        If the configuration file doesn't exist, prompt the user to create one.
         """
-        try:
-            if os.path.exists(self.config_file):
+        if os.path.exists(self.config_file):
+            try:
                 self.config.read(self.config_file)
                 logging.debug(f"Configuration loaded from {self.config_file}")
-            else:
-                logging.debug("No existing configuration file found.")
-        except Exception as e:
-            logging.error(f"Error loading configuration: {e}")
+            except Exception as e:
+                logging.error(f"Error loading configuration: {e}")
+        else:
+            logging.warning("No configuration file found, prompting user to create one.")
+            self.prompt_for_initial_config()
+
+    def prompt_for_initial_config(self):
+        """
+        Prompt the user to set up the necessary paths for ClamAV, freshclam, database, and quarantine.
+        Saves the configuration after paths are provided.
+        """
+        QMessageBox.information(None, "No Config Found", "No configuration file was found. Please set up your paths.")
+        
+        # Prompt for ClamAV path
+        self.prompt_for_clamav_path(None)
+
+        # Prompt for Freshclam path
+        self.prompt_for_freshclam_path(None)
+
+        # Prompt for database path
+        self.prompt_for_database_path(None)
+
+        # Prompt for quarantine path
+        self.prompt_for_quarantine_path(None)
+
+        # Save the configuration once all paths are set
+        self.save_config()
 
     def save_config(self):
         """
