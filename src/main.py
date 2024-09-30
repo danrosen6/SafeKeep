@@ -117,7 +117,7 @@ else:
         def show_about_dialog(self):
             """Display an About dialog."""
             self.logger.info("Showing About dialog.")
-            QMessageBox.about(self, "About SafeKeep", "SafeKeep Application\nPersonal Security Application\nDeveloped by Daniel Rosen.")
+            QMessageBox.about(self, "About SafeKeep", "SafeKeep\nPersonal Security Application\nDeveloped by Daniel Rosen.")
 
     # Initialize the QApplication
     app = QApplication([])

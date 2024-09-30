@@ -1,12 +1,15 @@
-# src/features/url_checker/url_analysis_widget.py
+# Adjusted url_analysis_widget.py
+
 import sys
 import threading
+import time
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLineEdit, QPushButton, QTextEdit, QLabel, QMessageBox
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QTextOption
 from features.url_checker.url_decomposition import analyze_url
 from features.url_checker.virus_total_analysis import initiate_virus_total_analysis
 from logs.logger import SafeKeepLogger
+
 
 class URLCheckerWindow(QWidget):
     virus_total_complete_signal = Signal(str)  # Signal to emit results of VirusTotal analysis
@@ -70,11 +73,21 @@ class URLCheckerWindow(QWidget):
     def start_virus_total_analysis(self):
         url = self.url_input.text()
         self.reset_timer()
-        threading.Thread(target=initiate_virus_total_analysis, args=(url, self.virus_total_complete_signal.emit), daemon=True).start()
+        # Submit the URL to VirusTotal and fetch the results after 15 seconds
+        threading.Thread(target=self.analyze_with_virustotal, args=(url,), daemon=True).start()
         self.logger.info(f"Started VirusTotal analysis for: {url}")
+
+    def analyze_with_virustotal(self, url):
+        result = initiate_virus_total_analysis(url, self.emit_results)
+        self.logger.info("VirusTotal analysis initiated.")
+
+    def emit_results(self, report):
+        # Emit the report through the signal
+        self.virus_total_complete_signal.emit(report)
 
     def reset_timer(self):
         self.virus_total_time_left = 15
+        self.virus_total_button.setEnabled(False)
         self.virus_total_timer.start()
         self.update_countdown()
 
