@@ -1,394 +1,134 @@
-"""
-Configuration Manager Module for SafeKeep Antivirus.
-
-This module defines the ConfigManager class, which handles reading, writing, and
-managing configuration settings for the SafeKeep Antivirus application. It provides
-methods to get and set paths for ClamAV executables, the virus database, and the
-quarantine directory. Additionally, it includes user interface prompts to allow
-users to configure these paths through dialog windows.
-"""
-
 import os
 import configparser
-import logging
-from PySide6.QtWidgets import QFileDialog, QMessageBox
-
-# Define the path to the configuration file
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
+from PySide6.QtWidgets import QFileDialog, QApplication, QMessageBox
+from logs.logger import SafeKeepLogger
 
 class ConfigManager:
-    def __init__(self):
+    def __init__(self, config_filename='config.ini'):
         """
-        Initialize the ConfigManager.
-        Loads the existing configuration from the configuration file if it exists.
-        If the configuration file does not exist, prompts the user to create one.
+        Initializes the ConfigManager with the specified config filename.
+        If the config file does not exist, it will be created.
         """
+
+        # Initialize the logger
+        self.logger = SafeKeepLogger().get_logger()
+        self.logger.info("Initializing ConfigManager.")
+
+        self.config_dir = os.path.join(os.path.dirname(__file__), '..', 'config')
+        self.config_file = os.path.join(self.config_dir, config_filename)
+
+        # Ensure the config directory exists
+        if not os.path.exists(self.config_dir):
+            os.makedirs(self.config_dir)
+            self.logger.info(f"Created config directory: {self.config_dir}")
+
+        # Initialize a config parser
         self.config = configparser.ConfigParser()
-        self.config_file = CONFIG_FILE
-        self.load_config()
 
-    def load_config(self):
-        """
-        Load configuration settings from the configuration file.
-        If the configuration file doesn't exist, prompt the user to create one.
-        """
-        if os.path.exists(self.config_file):
-            try:
-                self.config.read(self.config_file)
-                logging.debug(f"Configuration loaded from {self.config_file}")
-            except Exception as e:
-                logging.error(f"Error loading configuration: {e}")
+        # Create the config file if it does not exist
+        if not os.path.isfile(self.config_file):
+            self.logger.info("Config file not found. Creating a new one...")
+            self.create_config()
         else:
-            logging.warning("No configuration file found, prompting user to create one.")
-            self.prompt_for_initial_config()
+            self.logger.info(f"Config file found: {self.config_file}")
 
-    def prompt_for_initial_config(self):
+    def create_config(self):
         """
-        Prompt the user to set up the necessary paths for ClamAV, freshclam, database, and quarantine.
-        Saves the configuration after paths are provided.
+        Creates a new configuration file and prompts the user to set the required paths.
         """
-        QMessageBox.information(None, "No Config Found", "No configuration file was found. Please set up your paths.")
-        
-        # Prompt for ClamAV path
-        self.prompt_for_clamav_path(None)
-
-        # Prompt for Freshclam path
-        self.prompt_for_freshclam_path(None)
-
-        # Prompt for database path
-        self.prompt_for_database_path(None)
-
-        # Prompt for quarantine path
-        self.prompt_for_quarantine_path(None)
-
-        # Save the configuration once all paths are set
-        self.save_config()
-
-    def save_config(self):
-        """
-        Save the current configuration settings to the configuration file.
-
-        Writes the configuration data to the file specified by self.config_file.
-        Logs an error if the save operation fails.
-        """
+        self.logger.info("Creating a new configuration file.")
         try:
+            # Prompt the user for the required paths
+            clamscan_path = self.prompt_for_path("Select the path to clamscan.exe", file_selection=True)
+            freshclam_path = self.prompt_for_path("Select the path to freshclam.exe", file_selection=True)
+            clamav_database_path = self.prompt_for_path("Select the ClamAV database directory", file_selection=False)
+            quarantine_path = self.prompt_for_path("Select the quarantine directory", file_selection=False)
+
+            # Save the configuration to the file
+            self.config['Paths'] = {
+                'clamscan_path': clamscan_path,
+                'freshclam_path': freshclam_path,
+                'clamav_database_path': clamav_database_path,
+                'quarantine_path': quarantine_path
+            }
+
             with open(self.config_file, 'w') as configfile:
                 self.config.write(configfile)
-            logging.debug(f"Configuration saved to {self.config_file}")
+            self.logger.info(f"Configuration file created successfully at {self.config_file}")
+
         except Exception as e:
-            logging.error(f"Error saving configuration: {e}")
+            self.logger.error(f"Failed to create configuration file: {e}")
 
-    # ============================
-    # ClamAV Path Configuration
-    # ============================
-
-    def get_clamav_path(self):
+    def prompt_for_path(self, message, file_selection=False):
         """
-        Retrieve the path to the ClamAV 'clamscan' executable.
-
-        Returns:
-            str or None: The path to 'clamscan.exe' if configured, otherwise None.
+        Prompts the user to select a file or directory path using a dialog box.
+        :param message: Message displayed on the file dialog prompt.
+        :param file_selection: If True, a file selection dialog is displayed. Otherwise, a directory selection dialog is shown.
+        :return: The selected path as a string.
         """
-        return self.config.get('ClamAV', 'clamscan_path', fallback=None)
+        app = QApplication.instance()
+        if not app:
+            app = QApplication([])
 
-    def set_clamav_path(self, path):
+        path = ""
+        if file_selection:
+            path, _ = QFileDialog.getOpenFileName(None, message, "", "Executables (*.exe);;All Files (*)")
+        else:
+            path = QFileDialog.getExistingDirectory(None, message)
+
+        if not path:
+            QMessageBox.warning(None, "Path Selection", "No path was selected. Exiting...")
+            self.logger.warning(f"No path was selected for: {message}")
+            raise SystemExit(f"No path selected for {message}. Exiting application.")
+        self.logger.info(f"Path selected for '{message}': {path}")
+        return path
+
+    def get_config_value(self, section, key):
         """
-        Set the path to the ClamAV 'clamscan' executable.
-
-        Args:
-            path (str): The full path to 'clamscan.exe'.
+        Retrieves a value from the configuration file.
+        :param section: The section of the configuration file.
+        :param key: The key to retrieve the value for.
+        :return: The value corresponding to the specified section and key.
         """
-        if 'ClamAV' not in self.config:
-            self.config['ClamAV'] = {}
-        self.config['ClamAV']['clamscan_path'] = path
-        self.save_config()
-
-    # ==============================
-    # Freshclam Path Configuration
-    # ==============================
-
-    def get_freshclam_path(self):
-        """
-        Retrieve the path to the ClamAV 'freshclam' executable.
-
-        Returns:
-            str or None: The path to 'freshclam.exe' if configured, otherwise None.
-        """
-        return self.config.get('ClamAV', 'freshclam_path', fallback=None)
-
-    def set_freshclam_path(self, path):
-        """
-        Set the path to the ClamAV 'freshclam' executable.
-
-        Args:
-            path (str): The full path to 'freshclam.exe'.
-        """
-        if 'ClamAV' not in self.config:
-            self.config['ClamAV'] = {}
-        self.config['ClamAV']['freshclam_path'] = path
-        self.save_config()
-
-    # ===============================
-    # Virus Database Path Configuration
-    # ===============================
-
-    def get_database_path(self):
-        """
-        Retrieve the path to the ClamAV virus definition database.
-
-        Returns:
-            str or None: The path to the database directory if configured, otherwise None.
-        """
-        return self.config.get('ClamAV', 'database_path', fallback=None)
-
-    def set_database_path(self, path):
-        """
-        Set the path to the ClamAV virus definition database.
-
-        Args:
-            path (str): The full path to the database directory.
-        """
-        if 'ClamAV' not in self.config:
-            self.config['ClamAV'] = {}
-        self.config['ClamAV']['database_path'] = path
-        self.save_config()
-
-    # ===============================
-    # Quarantine Directory Configuration
-    # ===============================
-
-    def get_quarantine_path(self):
-        """
-        Retrieve the path to the quarantine directory.
-
-        Returns:
-            str or None: The path to the quarantine directory if configured, otherwise None.
-        """
-        return self.config.get('Quarantine', 'quarantine_path', fallback=None)
-
-    def set_quarantine_path(self, path):
-        """
-        Set the path to the quarantine directory.
-
-        Args:
-            path (str): The full path to the quarantine directory.
-        """
-        if 'Quarantine' not in self.config:
-            self.config['Quarantine'] = {}
-        self.config['Quarantine']['quarantine_path'] = path
-        self.save_config()
-
-    # ====================
-    # User Prompt Methods
-    # ====================
-
-    def prompt_for_clamav_path(self, parent):
-        """
-        Prompt the user to select the ClamAV 'clamscan.exe' executable.
-
-        Opens a file dialog to allow the user to locate 'clamscan.exe'. Continues to prompt
-        until a valid executable is selected or the user cancels the operation.
-
-        Args:
-            parent (QWidget): The parent widget for the dialog.
-        """
-        while True:
-            QMessageBox.information(
-                parent,
-                "ClamAV Path Required",
-                "Please locate your ClamAV 'clamscan.exe' executable."
-            )
-            file_path, _ = QFileDialog.getOpenFileName(
-                parent,
-                "Select clamscan.exe",
-                "",
-                "Executable Files (clamscan.exe);;All Files (*)"
-            )
-            if not file_path:
-                QMessageBox.critical(
-                    parent,
-                    "Operation Cancelled",
-                    "ClamAV path configuration is required to proceed."
-                )
-                continue  # Prompt again
-            elif os.path.basename(file_path).lower() == 'clamscan.exe':
-                self.set_clamav_path(file_path)
-                break  # Valid path selected, exit the loop
-            else:
-                QMessageBox.critical(
-                    parent,
-                    "Invalid Selection",
-                    "Please select the 'clamscan.exe' executable."
-                )
-
-    def prompt_for_freshclam_path(self, parent):
-        """
-        Prompt the user to select the ClamAV 'freshclam.exe' executable.
-
-        Opens a file dialog to allow the user to locate 'freshclam.exe'. Continues to prompt
-        until a valid executable is selected or the user cancels the operation.
-
-        Args:
-            parent (QWidget): The parent widget for the dialog.
-        """
-        while True:
-            QMessageBox.information(
-                parent,
-                "Freshclam Path Required",
-                "Please locate your ClamAV 'freshclam.exe' executable."
-            )
-            file_path, _ = QFileDialog.getOpenFileName(
-                parent,
-                "Select freshclam.exe",
-                "",
-                "Executable Files (freshclam.exe);;All Files (*)"
-            )
-            if not file_path:
-                QMessageBox.critical(
-                    parent,
-                    "Operation Cancelled",
-                    "Freshclam path configuration is required to proceed."
-                )
-                continue  # Prompt again
-            elif os.path.basename(file_path).lower() == 'freshclam.exe':
-                self.set_freshclam_path(file_path)
-                break  # Valid path selected, exit the loop
-            else:
-                QMessageBox.critical(
-                    parent,
-                    "Invalid Selection",
-                    "Please select the 'freshclam.exe' executable."
-                )
-
-    def prompt_for_database_path(self, parent):
-        """
-        Prompt the user to select the ClamAV virus definition database directory.
-
-        Opens a directory selection dialog to allow the user to locate the database
-        directory. Continues to prompt until a valid directory is selected or the user
-        cancels the operation.
-
-        Args:
-            parent (QWidget): The parent widget for the dialog.
-        """
-        while True:
-            QMessageBox.information(
-                parent,
-                "Database Path Required",
-                "Please locate your ClamAV database directory."
-            )
-            directory = QFileDialog.getExistingDirectory(
-                parent,
-                "Select ClamAV Database Directory",
-                ""
-            )
-            if not directory:
-                QMessageBox.critical(
-                    parent,
-                    "Operation Cancelled",
-                    "Database path configuration is required to proceed."
-                )
-                continue  # Prompt again
-            else:
-                if os.path.exists(directory):
-                    self.set_database_path(directory)
-                    break  # Valid path selected, exit the loop
-                else:
-                    QMessageBox.critical(
-                        parent,
-                        "Invalid Selection",
-                        "Please select a valid directory."
-                    )
-
-    def prompt_for_quarantine_path(self, parent):
-        """
-        Prompt the user to select or create a quarantine directory.
-
-        Opens a directory selection dialog to allow the user to choose a quarantine
-        directory. If the user does not select a directory, offers to create a default
-        quarantine directory.
-
-        Args:
-            parent (QWidget): The parent widget for the dialog.
-        """
-        while True:
-            QMessageBox.information(
-                parent,
-                "Quarantine Directory Required",
-                "Please select or create a directory to be used as the quarantine location."
-            )
-            directory = QFileDialog.getExistingDirectory(
-                parent,
-                "Select Quarantine Directory",
-                ""
-            )
-            if directory:
-                if os.path.exists(directory):
-                    self.set_quarantine_path(directory)
-                    # Set directory permissions to restrict access
-                    try:
-                        os.chmod(directory, 0o700)
-                    except Exception as e:
-                        logging.error(f"Failed to set permissions on quarantine directory: {e}")
-                        QMessageBox.warning(
-                            parent,
-                            "Permission Error",
-                            f"Failed to set permissions on quarantine directory:\n{e}"
-                        )
-                    break  # Valid directory selected
-                else:
-                    QMessageBox.critical(
-                        parent,
-                        "Invalid Selection",
-                        "Please select a valid directory."
-                    )
-            else:
-                # User did not select a directory, offer to create a default one
-                create_new = QMessageBox.question(
-                    parent,
-                    "Create Quarantine Directory",
-                    "No directory selected. Would you like to create a default quarantine directory?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if create_new == QMessageBox.Yes:
-                    self.setup_quarantine_directory(parent)
-                    break
-                else:
-                    QMessageBox.warning(
-                        parent,
-                        "Quarantine Directory Required",
-                        "A quarantine directory is required to proceed."
-                    )
-                    # Loop again to prompt for directory
-
-    def setup_quarantine_directory(self, parent):
-        """
-        Create a default quarantine directory in the user's home directory.
-
-        Attempts to create a directory named 'SafeKeep_Quarantine' in the user's home
-        directory. Sets appropriate permissions and updates the configuration. If creation
-        fails, displays an error message and re-prompts the user.
-
-        Args:
-            parent (QWidget): The parent widget for the dialog.
-        """
-        default_quarantine_path = os.path.join(os.path.expanduser('~'), 'SafeKeep_Quarantine')
         try:
-            if not os.path.exists(default_quarantine_path):
-                os.makedirs(default_quarantine_path)
-            # Set directory permissions to restrict access
-            os.chmod(default_quarantine_path, 0o700)
-            self.set_quarantine_path(default_quarantine_path)
-            QMessageBox.information(
-                parent,
-                "Quarantine Directory Created",
-                f"A default quarantine directory has been created at:\n{default_quarantine_path}"
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                parent,
-                "Error Creating Quarantine Directory",
-                f"An error occurred while creating the quarantine directory:\n{str(e)}"
-            )
-            # Prompt the user again
-            self.prompt_for_quarantine_path(parent)
+            self.config.read(self.config_file)
+            value = self.config[section][key]
+            self.logger.info(f"Retrieved value for [{section}] {key}: {value}")
+            return value
+        except KeyError as e:
+            self.logger.error(f"Key '{key}' not found in section '{section}' of the config file: {e}")
+            raise
+
+    def set_config_value(self, section, key, value):
+        """
+        Sets a value in the configuration file.
+        :param section: The section of the configuration file.
+        :param key: The key to set the value for.
+        :param value: The value to be set.
+        """
+        self.config.read(self.config_file)
+        if section not in self.config:
+            self.config[section] = {}
+        self.config[section][key] = value
+
+        # Write changes back to the file
+        with open(self.config_file, 'w') as configfile:
+            self.config.write(configfile)
+        self.logger.info(f"Set value for [{section}] {key} to {value} in config file.")
+
+# Example usage within this module (this would not run when imported):
+if __name__ == "__main__":
+    config_manager = ConfigManager()
+    clamscan_path = config_manager.get_config_value('Paths', 'clamscan_path')
+    print(f"Clamscan Path: {clamscan_path}")
+
+
+"""
+main.py implementation
+
+from core.config_manager import ConfigManager
+
+# Initialize ConfigManager
+config_manager = ConfigManager()
+
+"""
