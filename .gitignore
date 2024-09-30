@@ -4,6 +4,7 @@
 /src/config/__pycache__
 /src/config/config.ini
 /src/features/database_update/__pycache__
+/src/features/__pycache__
 /src/features/quarantine/__pycache__
 /src/features/virus_scanner/__pycache__
 /src/logs/__pycache__

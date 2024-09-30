@@ -112,7 +112,7 @@ else:
             """Display an About dialog."""
             self.logger.info("Showing About dialog.")
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.about(self, "About SafeKeep", "SafeKeep Application\nVersion 1.0\nDeveloped by [Your Name].")
+            QMessageBox.about(self, "About SafeKeep", "SafeKeep Application\nPersonal Security Application\nDeveloped by Daniel Rosen.")
 
     # Initialize the QApplication
     app = QApplication([])

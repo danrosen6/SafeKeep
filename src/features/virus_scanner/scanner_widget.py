@@ -1,6 +1,7 @@
 # src/features/virus_scanner/scanner_widget.py
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog, QTextEdit, QMessageBox, QLabel
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal, Slot
+from features.thread_manager import ThreadManager  # Import the ThreadManager
 from logs.logger import SafeKeepLogger
 from .scanner import VirusScanner
 
@@ -34,17 +35,21 @@ class VirusScannerWidget(QWidget):
         # Initialize the VirusScanner instance
         self.scanner = VirusScanner()
 
+        # Initialize the ThreadManager
+        self.thread_manager = ThreadManager()
+        self.thread_manager.scan_completed_signal.connect(self.display_scan_results)
+        self.thread_manager.scan_failed_signal.connect(self.handle_scan_failed)
+
     def set_status(self, message):
         """
         Updates the status label with the given message.
-        :param message: The status message to display.
         """
         self.status_label.setText(f"Status: {message}")
-        self.logger.info(message)
+        self.logger.info(f"Status set to: {message}")
 
     def scan_file(self):
         """
-        Prompts the user to select a file and initiates a virus scan on it.
+        Prompts the user to select a file and initiates a virus scan on it using ThreadManager.
         """
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File to Scan", "", "All Files (*)")
         if not file_path:
@@ -54,33 +59,15 @@ class VirusScannerWidget(QWidget):
 
         self.logger.info(f"Selected file for scanning: {file_path}")
         self.set_status("Scanning file...")
+        self.scan_file_button.setEnabled(False)
+        self.scan_directory_button.setEnabled(False)
 
-        try:
-            # Disable the buttons to prevent starting another scan
-            self.scan_file_button.setEnabled(False)
-            self.scan_directory_button.setEnabled(False)
-
-            # Perform the scan
-            result = self.scanner.scan_file(file_path)
-
-            # Display the scan results and summary
-            self.display_scan_results(file_path, result)
-
-            self.set_status("Scan completed")
-            self.logger.info(f"File scan completed for: {file_path}")
-            QMessageBox.information(self, "Scan Complete", f"Scan completed for file: {file_path}")
-        except Exception as e:
-            self.set_status("Scan failed")
-            QMessageBox.critical(self, "Scan Failed", f"Failed to scan file: {e}")
-            self.logger.error(f"Scan failed for file {file_path}: {e}")
-        finally:
-            # Re-enable the buttons
-            self.scan_file_button.setEnabled(True)
-            self.scan_directory_button.setEnabled(True)
+        # Submit the file scan task to the ThreadManager
+        self.thread_manager.submit_task(self.scanner.scan_file, file_path)
 
     def scan_directory(self):
         """
-        Prompts the user to select a directory and initiates a virus scan on it.
+        Prompts the user to select a directory and initiates a virus scan on it using ThreadManager.
         """
         directory_path = QFileDialog.getExistingDirectory(self, "Select Directory to Scan")
         if not directory_path:
@@ -90,44 +77,21 @@ class VirusScannerWidget(QWidget):
 
         self.logger.info(f"Selected directory for scanning: {directory_path}")
         self.set_status("Scanning directory...")
+        self.scan_file_button.setEnabled(False)
+        self.scan_directory_button.setEnabled(False)
 
-        try:
-            # Disable the buttons to prevent starting another scan
-            self.scan_file_button.setEnabled(False)
-            self.scan_directory_button.setEnabled(False)
+        # Submit the directory scan task to the ThreadManager
+        self.thread_manager.submit_task(self.scanner.scan_directory, directory_path)
 
-            # Perform the scan
-            result = self.scanner.scan_directory(directory_path)
-
-            # Display the scan results and summary
-            self.display_scan_results(directory_path, result)
-
-            self.set_status("Scan completed")
-            self.logger.info(f"Directory scan completed for: {directory_path}")
-            QMessageBox.information(self, "Scan Complete", f"Scan completed for directory: {directory_path}")
-        except Exception as e:
-            self.set_status("Scan failed")
-            QMessageBox.critical(self, "Scan Failed", f"Failed to scan directory: {e}")
-            self.logger.error(f"Scan failed for directory {directory_path}: {e}")
-        finally:
-            # Re-enable the buttons
-            self.scan_file_button.setEnabled(True)
-            self.scan_directory_button.setEnabled(True)
-
+    @Slot(str, dict)
     def display_scan_results(self, path, result):
         """
-        Displays the scan results in the scan_results text box.
-        :param path: The path that was scanned (file or directory).
-        :param result: The scan result returned by the VirusScanner.
+        Slot function to display the scan results in the scan_results text box.
+        This function is connected to the custom signal and will always run in the main thread.
         """
-        output_text = f"Scan Results for {path}:\n"
-        output_text += f"{result['output']}\n"
+        output_text = f"Scan Results for {path}:\n{result.get('output', '')}\n"
+        output_text += result.get('summary', '')
 
-        # Include the summary if available
-        if 'summary' in result and result['summary']:
-            output_text += f"{result['summary']}\n"
-
-        # Display in the text box
         self.scan_results.append(output_text)
         self.logger.info(f"Displayed scan results for {path}.")
 
@@ -136,3 +100,20 @@ class VirusScannerWidget(QWidget):
             infected_text = "\n".join([f"{file['file']} - {file['virus']}" for file in result['infected_files']])
             self.scan_results.append(f"\nInfected files detected:\n{infected_text}\n")
             QMessageBox.warning(self, "Infected Files Found", f"Infected files were detected during the scan:\n{infected_text}")
+
+        self.set_status("Scan completed")
+        self.scan_file_button.setEnabled(True)
+        self.scan_directory_button.setEnabled(True)
+
+    @Slot(str, str)
+    def handle_scan_failed(self, path, error_message):
+        """
+        Slot function to handle failed scans.
+        :param path: The path that was scanned.
+        :param error_message: The error message describing the failure.
+        """
+        self.set_status(f"Scan failed for {path}")
+        QMessageBox.critical(self, "Scan Failed", f"Scan failed for {path}.\nError: {error_message}")
+        self.logger.error(f"Scan failed for {path}. Error: {error_message}")
+        self.scan_file_button.setEnabled(True)
+        self.scan_directory_button.setEnabled(True)
