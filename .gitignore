@@ -7,5 +7,6 @@
 /src/features/__pycache__
 /src/features/quarantine/__pycache__
 /src/features/virus_scanner/__pycache__
+/src/features/url_checker/__pycache__
 /src/logs/__pycache__
 /src/logs/safekeep.log

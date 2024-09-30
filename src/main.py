@@ -1,19 +1,24 @@
 # src/main.py
+
 import os
 import sys
 import ctypes
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMainWindow, QMenuBar, QStackedWidget, QMessageBox
+from PySide6.QtGui import QAction
 from features.virus_scanner.scanner_widget import VirusScannerWidget
 from features.quarantine.quarantine_widget import QuarantineWidget
 from features.database_update.updater_widget import DatabaseUpdateWidget
+from features.url_checker.url_analysis_widget import URLCheckerWindow  # Import the URL Analysis widget
 from logs.logger import SafeKeepLogger
-from PySide6.QtWidgets import QMainWindow, QMenuBar, QStackedWidget
-from PySide6.QtGui import QAction
+from dotenv import load_dotenv
+
+# Load environment variables from the .env file
+load_dotenv()
 
 def is_admin():
     """
     Check if the current user has administrative privileges.
-    
+
     Returns:
         bool: True if the user is an administrator, False otherwise.
     """
@@ -45,7 +50,7 @@ else:
         def __init__(self):
             super().__init__()
             self.setWindowTitle("SafeKeep Application")
-            self.setGeometry(100, 100, 800, 600)
+            self.setGeometry(100, 100, 1000, 700)
 
             # Initialize the logger
             self.logger = SafeKeepLogger().get_logger()
@@ -63,15 +68,17 @@ else:
             virus_scanner_action = QAction("Virus Scanner", self)
             quarantine_manager_action = QAction("Quarantine Manager", self)
             database_update_action = QAction("Database Updater", self)
+            url_checker_action = QAction("URL Analysis", self)
             features_menu.addAction(virus_scanner_action)
             features_menu.addAction(quarantine_manager_action)
             features_menu.addAction(database_update_action)
+            features_menu.addAction(url_checker_action)
 
-            # Add Help menu actions (optional)
+            # Add Help menu actions
             about_action = QAction("About", self)
             help_menu.addAction(about_action)
 
-            # Create a container to hold different feature widgets
+            # Create a QStackedWidget to hold different feature widgets
             self.stacked_widget = QStackedWidget()
             self.setCentralWidget(self.stacked_widget)
 
@@ -79,39 +86,37 @@ else:
             self.virus_scanner_widget = VirusScannerWidget()
             self.quarantine_widget = QuarantineWidget()
             self.database_update_widget = DatabaseUpdateWidget()
+            self.url_checker_widget = URLCheckerWindow()  # Create the URL Analysis widget
 
             self.stacked_widget.addWidget(self.virus_scanner_widget)
             self.stacked_widget.addWidget(self.quarantine_widget)
             self.stacked_widget.addWidget(self.database_update_widget)
+            self.stacked_widget.addWidget(self.url_checker_widget)
 
-            # Connect menu actions to methods
-            virus_scanner_action.triggered.connect(self.show_virus_scanner)
-            quarantine_manager_action.triggered.connect(self.show_quarantine_manager)
-            database_update_action.triggered.connect(self.show_database_updater)
+            # Connect menu actions to methods for switching widgets
+            virus_scanner_action.triggered.connect(lambda: self.show_feature(self.virus_scanner_widget, "Virus Scanner"))
+            quarantine_manager_action.triggered.connect(lambda: self.show_feature(self.quarantine_widget, "Quarantine Manager"))
+            database_update_action.triggered.connect(lambda: self.show_feature(self.database_update_widget, "Database Updater"))
+            url_checker_action.triggered.connect(lambda: self.show_feature(self.url_checker_widget, "URL Analysis"))
             about_action.triggered.connect(self.show_about_dialog)
 
             # Show the initial widget
             self.stacked_widget.setCurrentWidget(self.virus_scanner_widget)
+            self.logger.info("Main window initialized successfully.")
 
-        def show_virus_scanner(self):
-            """Switch to the Virus Scanner widget."""
-            self.logger.info("Switching to Virus Scanner widget.")
-            self.stacked_widget.setCurrentWidget(self.virus_scanner_widget)
-
-        def show_quarantine_manager(self):
-            """Switch to the Quarantine Manager widget."""
-            self.logger.info("Switching to Quarantine Manager widget.")
-            self.stacked_widget.setCurrentWidget(self.quarantine_widget)
-
-        def show_database_updater(self):
-            """Switch to the Database Updater widget."""
-            self.logger.info("Switching to Database Updater widget.")
-            self.stacked_widget.setCurrentWidget(self.database_update_widget)
+        def show_feature(self, widget, feature_name):
+            """
+            Switch to the given feature widget in the stacked widget.
+            Args:
+                widget (QWidget): The widget to display.
+                feature_name (str): The name of the feature to log.
+            """
+            self.stacked_widget.setCurrentWidget(widget)
+            self.logger.info(f"Switched to {feature_name} feature.")
 
         def show_about_dialog(self):
             """Display an About dialog."""
             self.logger.info("Showing About dialog.")
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.about(self, "About SafeKeep", "SafeKeep Application\nPersonal Security Application\nDeveloped by Daniel Rosen.")
 
     # Initialize the QApplication
