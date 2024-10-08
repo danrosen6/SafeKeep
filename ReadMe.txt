@@ -103,33 +103,30 @@ Project Setup Guide
     For this specific project, start with:
         python main.py
 
-SafeKeep/
-│
-├── src/
-│   ├── config/                    # Configuration files (e.g., config.ini)
-│   ├── core/                      # Core logic and shared utilities
-│   │   ├── config_manager.py      # Configuration management utilities
-│   │   ├── logger.py              # Logging utilities
-│   │   ├── database_manager.py    # Shared database utilities, if applicable
-│   │   └── constants.py           # Constant values and enums
-│   ├── features/                  # Separate directory for each feature module
-│   │   ├── virus_scanner/         # Virus scanning feature
-│   │   │   ├── scanner.py         # Scanning logic and integrations
-│   │   │   └── scanner_widget.py  # Virus scanning GUI widget
-│   │   ├── quarantine/            # Quarantine feature
-│   │   │   ├── quarantine.py      # Quarantine handling logic
-│   │   │   └── quarantine_widget.py # Quarantine GUI widget
-│   │   ├── database_update/       # Antivirus database update feature
-│   │   │   ├── updater.py         # Update logic
-│   │   │   └── updater_widget.py  # GUI widget for updates
-│   │   └── (future_feature)/      # Additional feature directories as needed
-│   ├── views/                     # Global views and GUI components
-│   │   ├── main_window.py         # Main application window
-│   │   ├── menu_bar.py            # Menu bar and navigation
-│   │   └── status_bar.py          # Status bar and notifications
-│   ├── services/                  # Core business logic and external service integration
-│   │   ├── virus_total_service.py # VirusTotal API service
-│   │   └── clamav_service.py      # ClamAV scanning service
-│   └── main.py                    # Entry point for the application
-│
-└── README.md
+SafeKeep
+|
+├── src
+|   ├── config
+|   |   └── config.ini
+|   |
+|   ├── gui
+|   |   ├── main_window.py
+|   |   ├── virus_scanner_widget.py
+|   |   ├── quarantine_widget.py
+|   |   └── database_update_widget.py
+|   |
+|   ├── services
+|   |   ├── clamav_service.py
+|   |   ├── quarantine_service.py
+|   |   ├── url_checker.py
+|   |   └── config_manager.py
+|   |
+|   ├── utils
+|   |   ├── logger.py
+|   |   └── env_handler.py
+|   |
+|   └── main.py
+|
+├── README.md
+└── .env
+
