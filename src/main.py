@@ -8,6 +8,7 @@ from features.quarantine.quarantine_widget import QuarantineWidget
 from features.database_update.updater_widget import DatabaseUpdateWidget
 from features.url_checker.url_analysis_widget import URLCheckerWindow
 from features.traffic_analysis.traffic_analysis_widget import TrafficAnalyzer  # Import the Traffic Analysis widget
+from features.traffic_analysis.anomaly_management_widget import AnomalyManagementWidget  # Import the Anomaly Management widget
 from logs.logger import SafeKeepLogger
 from dotenv import load_dotenv
 
@@ -68,13 +69,15 @@ else:
             quarantine_manager_action = QAction("Quarantine Manager", self)
             database_update_action = QAction("Database Updater", self)
             url_checker_action = QAction("URL Analysis", self)
-            traffic_analysis_action = QAction("Traffic Analysis", self)  # New Traffic Analysis action
+            traffic_analysis_action = QAction("Traffic Analysis", self)  # Traffic Analysis action
+            anomaly_management_action = QAction("Anomaly Management", self)  # Anomaly Management action
             
             features_menu.addAction(virus_scanner_action)
             features_menu.addAction(quarantine_manager_action)
             features_menu.addAction(database_update_action)
             features_menu.addAction(url_checker_action)
             features_menu.addAction(traffic_analysis_action)  # Add Traffic Analysis to the menu
+            features_menu.addAction(anomaly_management_action)  # Add Anomaly Management to the menu
 
             # Add Help menu actions
             about_action = QAction("About", self)
@@ -90,12 +93,14 @@ else:
             self.database_update_widget = DatabaseUpdateWidget()
             self.url_checker_widget = URLCheckerWindow()
             self.traffic_analyzer_widget = TrafficAnalyzer()  # Create the Traffic Analysis widget
+            self.anomaly_management_widget = AnomalyManagementWidget()  # Create the Anomaly Management widget
 
             self.stacked_widget.addWidget(self.virus_scanner_widget)
             self.stacked_widget.addWidget(self.quarantine_widget)
             self.stacked_widget.addWidget(self.database_update_widget)
             self.stacked_widget.addWidget(self.url_checker_widget)
             self.stacked_widget.addWidget(self.traffic_analyzer_widget)  # Add the Traffic Analysis widget to the stacked widget
+            self.stacked_widget.addWidget(self.anomaly_management_widget)  # Add the Anomaly Management widget to the stacked widget
 
             # Connect menu actions to methods for switching widgets
             virus_scanner_action.triggered.connect(lambda: self.show_feature(self.virus_scanner_widget, "Virus Scanner"))
@@ -103,6 +108,7 @@ else:
             database_update_action.triggered.connect(lambda: self.show_feature(self.database_update_widget, "Database Updater"))
             url_checker_action.triggered.connect(lambda: self.show_feature(self.url_checker_widget, "URL Analysis"))
             traffic_analysis_action.triggered.connect(lambda: self.show_feature(self.traffic_analyzer_widget, "Traffic Analysis"))
+            anomaly_management_action.triggered.connect(lambda: self.show_feature(self.anomaly_management_widget, "Anomaly Management"))
             about_action.triggered.connect(self.show_about_dialog)
 
             # Show the initial widget
