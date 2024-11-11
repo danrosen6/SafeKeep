@@ -10,4 +10,5 @@
 /src/features/url_checker/__pycache__
 /src/logs/__pycache__
 /src/logs/safekeep.log
+/src/logs/anomalies.json
 /src/features/traffic_analysis/__pycache__

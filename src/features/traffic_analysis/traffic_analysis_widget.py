@@ -1,12 +1,17 @@
+# File: features/traffic_analysis/traffic_analysis_widget.py
+
 import pyshark
 import asyncio
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit, QLabel, QFileDialog, QComboBox, QLineEdit
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QPushButton, QTextEdit, QLabel, QComboBox, QLineEdit
+)
 from PySide6.QtCore import Signal, Slot
 from logs.logger import SafeKeepLogger
 from threading import Thread
 import os
 from config.config_manager import ConfigManager
 from collections import defaultdict
+from features.traffic_analysis.anomaly_management_widget import AnomalyManagementWidget
 
 class TrafficAnalyzer(QWidget):
     traffic_capture_complete_signal = Signal(str)
@@ -22,12 +27,14 @@ class TrafficAnalyzer(QWidget):
         layout = QVBoxLayout(self)
         self.interface_combo = QComboBox(self)
         self.capture_filter_input = QLineEdit(self)
-        self.capture_filter_input.setPlaceholderText("Optional: Enter capture filter (e.g., tcp port 80)")
+        self.capture_filter_input.setPlaceholderText(
+            "Optional: Enter capture filter (e.g., tcp port 80)"
+        )
         self.start_capture_button = QPushButton("Start Capture", self)
         self.stop_capture_button = QPushButton("Stop Capture", self)
         self.capture_output = QTextEdit(self)
         self.capture_output.setReadOnly(True)
-        
+
         self.stop_capture_button.setEnabled(False)
 
         layout.addWidget(QLabel("Traffic Analysis Tool"))
@@ -38,6 +45,15 @@ class TrafficAnalyzer(QWidget):
         layout.addWidget(self.stop_capture_button)
         layout.addWidget(self.capture_output)
 
+        # Add the new button for anomaly management settings
+        self.open_anomaly_management_button = QPushButton(
+            "Anomaly Management Settings", self
+        )
+        layout.addWidget(self.open_anomaly_management_button)
+        self.open_anomaly_management_button.clicked.connect(
+            self.open_anomaly_management
+        )
+
         self.start_capture_button.clicked.connect(self.start_capture)
         self.stop_capture_button.clicked.connect(self.stop_capture)
         self.traffic_capture_complete_signal.connect(self.update_capture_output)
@@ -46,15 +62,30 @@ class TrafficAnalyzer(QWidget):
         self.stop_capture_flag = False
         self.config_manager = ConfigManager()
         self.tshark_path = self.get_tshark_path_from_config()
-        self.logger.debug("TrafficAnalyzer initialized with interface selection and default values.")
+        self.logger.debug(
+            "TrafficAnalyzer initialized with interface selection and default values."
+        )
 
         # Populate available interfaces
         self.populate_interfaces()
 
         # Initialize anomaly detection data
         self.protocol_counts = defaultdict(int)
-        self.udp_flood_threshold = 200  # Threshold for detecting UDP flood
-        self.icmp_flood_threshold = 150  # Threshold for detecting ICMP flood
+        self.load_thresholds()
+
+        # Add dictionary to store anomaly details
+        self.anomalies = []
+
+    def open_anomaly_management(self):
+        self.anomaly_management_widget = AnomalyManagementWidget()
+        self.anomaly_management_widget.thresholds_updated.connect(
+            self.reload_thresholds
+        )
+        self.anomaly_management_widget.show()
+
+    def reload_thresholds(self):
+        self.logger.info("Thresholds updated. Reloading thresholds in TrafficAnalyzer.")
+        self.load_thresholds()
 
     def get_tshark_path_from_config(self):
         try:
@@ -73,18 +104,41 @@ class TrafficAnalyzer(QWidget):
         except Exception as e:
             self.logger.error(f"Failed to retrieve network interfaces: {e}")
 
+    def load_thresholds(self):
+        try:
+            self.udp_flood_threshold = int(
+                self.config_manager.get_config_value('Anomalies', 'udp_threshold')
+            )
+            self.icmp_flood_threshold = int(
+                self.config_manager.get_config_value('Anomalies', 'icmp_threshold')
+            )
+            self.logger.info("Reloaded thresholds from configuration.")
+        except KeyError:
+            # Use default values if thresholds are not found in config
+            self.udp_flood_threshold = 200
+            self.icmp_flood_threshold = 150
+            self.logger.warning(
+                "Thresholds not found in configuration. Using default values."
+            )
+
     def start_capture(self):
         interface = self.interface_combo.currentText()
+        self.interface_name = interface  # Store the selected interface name
         capture_filter = self.capture_filter_input.text()
-        self.logger.info(f"Starting traffic capture on interface: {interface} with filter: {capture_filter if capture_filter else 'None'}.")
+        self.logger.info(
+            f"Starting traffic capture on interface: {interface} with filter: "
+            f"{capture_filter if capture_filter else 'None'}."
+        )
         self.capture_output.append("Starting packet capture...")
         self.stop_capture_flag = False
         self.start_capture_button.setEnabled(False)
         self.stop_capture_button.setEnabled(True)
-        
+
         self.capture_thread = Thread(target=self.capture_traffic, daemon=True)
         self.capture_thread.start()
-        self.logger.debug(f"Capture thread started for interface: {interface} with filter: {capture_filter}.")
+        self.logger.debug(
+            f"Capture thread started for interface: {interface} with filter: {capture_filter}."
+        )
 
     def stop_capture(self):
         self.logger.info("Stopping traffic capture.")
@@ -95,6 +149,15 @@ class TrafficAnalyzer(QWidget):
         if self.capture_thread and self.capture_thread.is_alive():
             self.capture_thread.join()
             self.logger.debug("Capture thread joined successfully.")
+
+        # Display the logged anomalies for review
+        self.capture_output.append("\nAnomalies Detected:")
+        for anomaly in self.anomalies:
+            self.capture_output.append(
+                f"Protocol: {anomaly['protocol']}, Source IP: {anomaly['source_ip']}, "
+                f"Destination IP: {anomaly['destination_ip']}, Packet Count: {anomaly['packet_count']}, "
+                f"Interface: {anomaly['interface']}"
+            )
 
     def capture_traffic(self):
         loop = asyncio.new_event_loop()
@@ -112,8 +175,14 @@ class TrafficAnalyzer(QWidget):
             else:
                 self.logger.info("No filter set. Capturing all protocols, including UDP.")
 
-            capture = pyshark.LiveCapture(interface=interface, bpf_filter=capture_filter if capture_filter else None, tshark_path=self.tshark_path)
-            self.logger.debug(f"Initialized LiveCapture with filter: {capture_filter} and interface: {interface}")
+            capture = pyshark.LiveCapture(
+                interface=interface,
+                bpf_filter=capture_filter if capture_filter else None,
+                tshark_path=self.tshark_path
+            )
+            self.logger.debug(
+                f"Initialized LiveCapture with filter: {capture_filter} and interface: {interface}"
+            )
             for packet in capture.sniff_continuously():
                 if self.stop_capture_flag:
                     self.logger.debug("Stop capture flag detected. Exiting packet capture loop.")
@@ -143,9 +212,9 @@ class TrafficAnalyzer(QWidget):
             if hasattr(packet, 'ip'):
                 source = packet.ip.src
                 destination = packet.ip.dst
-            elif hasattr(packet, 'ip6'):
-                source = packet.ip6.src
-                destination = packet.ip6.dst
+            elif hasattr(packet, 'ipv6'):
+                source = packet.ipv6.src
+                destination = packet.ipv6.dst
             elif hasattr(packet, 'eth'):
                 source = packet.eth.src
                 destination = packet.eth.dst
@@ -165,10 +234,10 @@ class TrafficAnalyzer(QWidget):
                 info.append(f"UDP Port: {packet.udp.port}")
             if hasattr(packet, 'icmp'):
                 info.append(f"ICMP Type: {packet.icmp.type}")
-            if hasattr(packet, 'http'):
-                info.append(f"HTTP Method: {getattr(packet.http, 'request_method', 'N/A')}")
             if hasattr(packet, 'ip'):
                 info.append(f"TTL: {packet.ip.ttl}")
+            elif hasattr(packet, 'ipv6'):
+                info.append(f"Hop Limit: {packet.ipv6.hlim}")
             additional_info = ' | '.join(info) if info else 'No additional info'
 
             summary = f"[{time}] {protocol} - {source} -> {destination} | Length: {length} | Info: {additional_info}"
@@ -184,22 +253,73 @@ class TrafficAnalyzer(QWidget):
         try:
             protocol = packet.highest_layer
             self.protocol_counts[protocol] += 1
-            self.logger.debug(f"Protocol count for {protocol}: {self.protocol_counts[protocol]}")
 
             # Detect UDP flood
             if protocol == 'UDP' and self.protocol_counts[protocol] > self.udp_flood_threshold:
                 anomaly_message = f"Anomaly detected: Potential UDP flood attack ({self.protocol_counts[protocol]} UDP packets)"
                 self.logger.warning(anomaly_message)
-                self.traffic_capture_complete_signal.emit(anomaly_message)
-
-            # Detect ICMP and ICMPv6 flood
-            if (protocol == 'ICMP' or protocol == 'ICMPV6') and self.protocol_counts[protocol] > self.icmp_flood_threshold:
+                self.capture_output.append(anomaly_message)
+                self.log_anomaly(protocol, packet)
+            
+            # Detect ICMP flood
+            if protocol in ['ICMP', 'ICMPV6'] and self.protocol_counts[protocol] > self.icmp_flood_threshold:
                 anomaly_message = f"Anomaly detected: Potential ICMP flood attack ({self.protocol_counts[protocol]} {protocol} packets)"
                 self.logger.warning(anomaly_message)
-                self.traffic_capture_complete_signal.emit(anomaly_message)
+                self.capture_output.append(anomaly_message)
+                self.log_anomaly(protocol, packet)
 
         except AttributeError as e:
             self.logger.warning(f"Failed to analyze packet due to missing attributes: {e}")
+
+    def log_anomaly(self, protocol, packet):
+        try:
+            # Print available packet layers to debug IPv6 issues
+            self.logger.debug(f"Packet layers: {[layer.layer_name for layer in packet.layers]}")
+
+            # Initialize source and destination IPs as N/A
+            source_ip = "N/A"
+            destination_ip = "N/A"
+
+            # Try extracting IP addresses based on available layers
+            if hasattr(packet, 'ip'):
+                # IPv4
+                source_ip = packet.ip.src
+                destination_ip = packet.ip.dst
+            elif hasattr(packet, 'ipv6'):
+                # IPv6
+                source_ip = packet.ipv6.src
+                destination_ip = packet.ipv6.dst
+            else:
+                self.logger.warning(f"Unknown packet type for anomaly detection: {packet}")
+
+            # Log detailed information if source or destination IP is missing
+            if source_ip == "N/A" or destination_ip == "N/A":
+                self.logger.warning(f"Failed to extract IPs for {protocol} packet. Packet details: {packet}")
+
+            # Handle case where interface_name might not be set
+            interface_name = getattr(self, 'interface_name', 'Unknown')
+
+            # Add anomaly details to the list
+            anomaly_details = {
+                'protocol': protocol,
+                'source_ip': source_ip,
+                'destination_ip': destination_ip,
+                'packet_count': self.protocol_counts.get(protocol, 0),
+                'interface': interface_name  # Include interface name
+            }
+            self.anomalies.append(anomaly_details)
+
+            # Log anomaly to a JSON file
+            AnomalyManagementWidget.log_anomaly(
+                protocol,
+                source_ip,
+                destination_ip,
+                self.protocol_counts.get(protocol, 0),
+                interface_name  # Pass the interface name
+            )
+
+        except AttributeError as e:
+            self.logger.error(f"Error in logging anomaly for packet: {e}. Packet details: {packet}")
 
     @Slot(str)
     def update_capture_output(self, packet_info):
