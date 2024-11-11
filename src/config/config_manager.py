@@ -43,13 +43,15 @@ class ConfigManager:
             freshclam_path = self.prompt_for_path("Select the path to freshclam.exe", file_selection=True)
             clamav_database_path = self.prompt_for_path("Select the ClamAV database directory", file_selection=False)
             quarantine_path = self.prompt_for_path("Select the quarantine directory", file_selection=False)
+            tshark_path = self.prompt_for_path("Select the path to tshark.exe", file_selection=True)
 
             # Save the configuration to the file
             self.config['Paths'] = {
                 'clamscan_path': clamscan_path,
                 'freshclam_path': freshclam_path,
                 'clamav_database_path': clamav_database_path,
-                'quarantine_path': quarantine_path
+                'quarantine_path': quarantine_path,
+                'tshark_path': tshark_path
             }
 
             with open(self.config_file, 'w') as configfile:
@@ -119,16 +121,5 @@ class ConfigManager:
 # Example usage within this module (this would not run when imported):
 if __name__ == "__main__":
     config_manager = ConfigManager()
-    clamscan_path = config_manager.get_config_value('Paths', 'clamscan_path')
-    print(f"Clamscan Path: {clamscan_path}")
-
-
-"""
-main.py implementation
-
-from core.config_manager import ConfigManager
-
-# Initialize ConfigManager
-config_manager = ConfigManager()
-
-"""
+    tshark_path = config_manager.get_config_value('Paths', 'tshark_path')
+    print(f"TShark Path: {tshark_path}")
