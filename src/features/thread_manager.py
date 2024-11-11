@@ -3,6 +3,7 @@
 from PySide6.QtCore import QObject, Signal, Slot
 from concurrent.futures import ThreadPoolExecutor, Future
 import traceback
+import threading
 from logs.logger import SafeKeepLogger
 
 class ThreadManager(QObject):
@@ -14,6 +15,7 @@ class ThreadManager(QObject):
         super().__init__()
         self.logger = SafeKeepLogger().get_logger()
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.stop_event = threading.Event()  # Event to signal stopping tasks
         self.logger.info("ThreadManager initialized with max workers: %d" % max_workers)
 
     def submit_task(self, function, *args, **kwargs):
@@ -24,6 +26,9 @@ class ThreadManager(QObject):
         :param kwargs: Keyword arguments for the function.
         """
         try:
+            # Only add stop_event if the function expects it
+            if 'stop_event' in function.__code__.co_varnames:
+                kwargs['stop_event'] = self.stop_event  # Pass the stop event to the function
             future = self.executor.submit(function, *args, **kwargs)
             future.add_done_callback(lambda fut: self.on_task_completed(fut, *args, **kwargs))
             self.logger.info("Task submitted successfully.")
@@ -54,3 +59,17 @@ class ThreadManager(QObject):
         except Exception as e:
             self.logger.error(f"Exception in on_task_completed: {e}, Traceback: {traceback.format_exc()}")
             self.scan_failed_signal.emit(args[0], f"Exception in on_task_completed: {e}")
+
+    def stop_all_tasks(self):
+        """
+        Signal all running tasks to stop.
+        """
+        self.logger.info("Signaling all tasks to stop.")
+        self.stop_event.set()
+
+    def reset_stop_event(self):
+        """
+        Reset the stop event to allow new tasks to run.
+        """
+        self.logger.info("Resetting stop event to allow new tasks.")
+        self.stop_event.clear()

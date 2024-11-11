@@ -45,7 +45,7 @@ class TrafficAnalyzer(QWidget):
         self.stop_capture_flag = False
         self.config_manager = ConfigManager()
         self.tshark_path = self.get_tshark_path_from_config()
-        self.logger.debug("TrafficAnalyzer initialized with default values.")
+        self.logger.debug("TrafficAnalyzer initialized with interface selection and default values.")
 
         # Populate available interfaces
         self.populate_interfaces()
@@ -53,7 +53,7 @@ class TrafficAnalyzer(QWidget):
     def get_tshark_path_from_config(self):
         try:
             tshark_path = self.config_manager.get_config_value('Paths', 'tshark_path')
-            self.logger.info(f"Retrieved TShark path from config: {tshark_path}")
+            self.logger.debug(f"Retrieved TShark path from config: {tshark_path}")
             return tshark_path
         except KeyError:
             self.logger.warning("TShark path not found in config. Please set it manually.")
@@ -68,23 +68,24 @@ class TrafficAnalyzer(QWidget):
             self.logger.error(f"Failed to retrieve network interfaces: {e}")
 
     def start_capture(self):
-        self.logger.info("Starting traffic capture.")
+        interface = self.interface_combo.currentText()
+        capture_filter = self.capture_filter_input.text()
+        self.logger.info(f"Starting traffic capture on interface: {interface} with filter: {capture_filter if capture_filter else 'None'}.")
         self.capture_output.append("Starting packet capture...")
         self.stop_capture_flag = False
         self.start_capture_button.setEnabled(False)
         self.stop_capture_button.setEnabled(True)
         
         self.capture_thread = Thread(target=self.capture_traffic, daemon=True)
-        self.logger.debug("Capture thread initialized and started.")
         self.capture_thread.start()
+        self.logger.debug(f"Capture thread started for interface: {interface} with filter: {capture_filter}.")
 
     def stop_capture(self):
         self.logger.info("Stopping traffic capture.")
         self.stop_capture_flag = True
-        self.logger.debug("Stop capture flag set to True.")
+        self.logger.debug("Stop capture requested, setting stop flag.")
         self.start_capture_button.setEnabled(True)
         self.stop_capture_button.setEnabled(False)
-        self.logger.debug("Start and Stop buttons updated accordingly.")
         if self.capture_thread and self.capture_thread.is_alive():
             self.capture_thread.join()
             self.logger.debug("Capture thread joined successfully.")
@@ -112,7 +113,7 @@ class TrafficAnalyzer(QWidget):
                     self.logger.debug("Stop capture flag detected. Exiting packet capture loop.")
                     break
                 packet_info = self.format_packet(packet)
-                self.logger.info(f"Captured packet: {packet_info}")
+                self.logger.debug(f"Captured packet: {packet_info}")
                 self.traffic_capture_complete_signal.emit(packet_info)
 
             self.logger.info("Packet capture completed.")
@@ -122,17 +123,50 @@ class TrafficAnalyzer(QWidget):
             self.logger.error(error_message)
             self.traffic_capture_complete_signal.emit(error_message)
         finally:
+            self.logger.debug("Event loop closing after packet capture.")
             loop.stop()
             loop.close()
 
     def format_packet(self, packet):
         try:
-            summary = f"[{packet.sniff_time}] {packet.highest_layer} - {packet.ip.src} -> {packet.ip.dst}"
+            time = packet.sniff_time
+            protocol = packet.highest_layer
+            length = packet.length
+
+            # Attempt to extract IP addresses, falling back to other layers if needed
+            if hasattr(packet, 'ip'):
+                source = packet.ip.src
+                destination = packet.ip.dst
+            elif hasattr(packet, 'ip6'):
+                source = packet.ip6.src
+                destination = packet.ip6.dst
+            elif hasattr(packet, 'eth'):
+                source = packet.eth.src
+                destination = packet.eth.dst
+            else:
+                source = 'N/A'
+                destination = 'N/A'
+
+            # Extract additional details similar to Wireshark's Info column
+            info = []
+            if hasattr(packet, 'frame_info'):
+                info.append(f"Frame Number: {packet.frame_info.number}")
+            if hasattr(packet, 'tcp'):
+                info.append(f"TCP Port: {packet.tcp.port}")
+            if hasattr(packet, 'udp'):
+                info.append(f"UDP Port: {packet.udp.port}")
+            if hasattr(packet, 'http'):
+                info.append(f"HTTP Method: {getattr(packet.http, 'request_method', 'N/A')}")
+            additional_info = ' | '.join(info) if info else 'No additional info'
+
+            summary = f"[{time}] {protocol} - {source} -> {destination} | Length: {length} | Info: {additional_info}"
             self.logger.debug(f"Formatted packet: {summary}")
             return summary
         except AttributeError as e:
             self.logger.warning(f"Failed to format packet due to missing attributes: {e}")
-            return "[Unknown Packet Type]"
+            detailed_info = f"Packet Length: {packet.length} | Layers: {[layer.layer_name for layer in packet.layers]} | Protocols: {packet.frame_info.protocols}"
+            self.logger.debug(f"Unknown packet details: {detailed_info}")
+            return f"[Unknown Packet Type] - {detailed_info}"
 
     @Slot(str)
     def update_capture_output(self, packet_info):
