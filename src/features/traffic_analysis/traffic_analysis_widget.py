@@ -6,6 +6,7 @@ from logs.logger import SafeKeepLogger
 from threading import Thread
 import os
 from config.config_manager import ConfigManager
+from collections import defaultdict
 
 class TrafficAnalyzer(QWidget):
     traffic_capture_complete_signal = Signal(str)
@@ -49,6 +50,11 @@ class TrafficAnalyzer(QWidget):
 
         # Populate available interfaces
         self.populate_interfaces()
+
+        # Initialize anomaly detection data
+        self.protocol_counts = defaultdict(int)
+        self.udp_flood_threshold = 200  # Threshold for detecting UDP flood
+        self.icmp_flood_threshold = 150  # Threshold for detecting ICMP flood
 
     def get_tshark_path_from_config(self):
         try:
@@ -113,8 +119,8 @@ class TrafficAnalyzer(QWidget):
                     self.logger.debug("Stop capture flag detected. Exiting packet capture loop.")
                     break
                 packet_info = self.format_packet(packet)
-                self.logger.debug(f"Captured packet: {packet_info}")
                 self.traffic_capture_complete_signal.emit(packet_info)
+                self.analyze_packet(packet)
 
             self.logger.info("Packet capture completed.")
             self.traffic_capture_complete_signal.emit("Packet capture completed.")
@@ -153,10 +159,16 @@ class TrafficAnalyzer(QWidget):
                 info.append(f"Frame Number: {packet.frame_info.number}")
             if hasattr(packet, 'tcp'):
                 info.append(f"TCP Port: {packet.tcp.port}")
+                if hasattr(packet.tcp, 'flags'):  # Adding TCP flags for more insight
+                    info.append(f"TCP Flags: {packet.tcp.flags.show}")
             if hasattr(packet, 'udp'):
                 info.append(f"UDP Port: {packet.udp.port}")
+            if hasattr(packet, 'icmp'):
+                info.append(f"ICMP Type: {packet.icmp.type}")
             if hasattr(packet, 'http'):
                 info.append(f"HTTP Method: {getattr(packet.http, 'request_method', 'N/A')}")
+            if hasattr(packet, 'ip'):
+                info.append(f"TTL: {packet.ip.ttl}")
             additional_info = ' | '.join(info) if info else 'No additional info'
 
             summary = f"[{time}] {protocol} - {source} -> {destination} | Length: {length} | Info: {additional_info}"
@@ -168,8 +180,28 @@ class TrafficAnalyzer(QWidget):
             self.logger.debug(f"Unknown packet details: {detailed_info}")
             return f"[Unknown Packet Type] - {detailed_info}"
 
+    def analyze_packet(self, packet):
+        try:
+            protocol = packet.highest_layer
+            self.protocol_counts[protocol] += 1
+            self.logger.debug(f"Protocol count for {protocol}: {self.protocol_counts[protocol]}")
+
+            # Detect UDP flood
+            if protocol == 'UDP' and self.protocol_counts[protocol] > self.udp_flood_threshold:
+                anomaly_message = f"Anomaly detected: Potential UDP flood attack ({self.protocol_counts[protocol]} UDP packets)"
+                self.logger.warning(anomaly_message)
+                self.traffic_capture_complete_signal.emit(anomaly_message)
+
+            # Detect ICMP and ICMPv6 flood
+            if (protocol == 'ICMP' or protocol == 'ICMPV6') and self.protocol_counts[protocol] > self.icmp_flood_threshold:
+                anomaly_message = f"Anomaly detected: Potential ICMP flood attack ({self.protocol_counts[protocol]} {protocol} packets)"
+                self.logger.warning(anomaly_message)
+                self.traffic_capture_complete_signal.emit(anomaly_message)
+
+        except AttributeError as e:
+            self.logger.warning(f"Failed to analyze packet due to missing attributes: {e}")
+
     @Slot(str)
     def update_capture_output(self, packet_info):
-        self.logger.debug(f"Updating capture output with packet info: {packet_info}")
         self.capture_output.append(packet_info)
-        self.logger.info("Updated capture output with new packet information.")
+        self.logger.debug(f"Capture output updated with packet info: {packet_info}")
