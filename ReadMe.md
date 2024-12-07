@@ -90,6 +90,9 @@ Project Setup Guide
     ClamAV
     https://docs.clamav.net/manual/Usage/Configuration.html
 
+    Wireshark
+    https://www.wireshark.org/download.html
+
 7. Refer to ClamAV document.
 
 8. Running Your Application
