@@ -103,30 +103,4 @@ Project Setup Guide
     For this specific project, start with:
         python main.py
 
-SafeKeep
-|
-├── src
-|   ├── config
-|   |   └── config.ini
-|   |
-|   ├── gui
-|   |   ├── main_window.py
-|   |   ├── virus_scanner_widget.py
-|   |   ├── quarantine_widget.py
-|   |   └── database_update_widget.py
-|   |
-|   ├── services
-|   |   ├── clamav_service.py
-|   |   ├── quarantine_service.py
-|   |   ├── url_checker.py
-|   |   └── config_manager.py
-|   |
-|   ├── utils
-|   |   ├── logger.py
-|   |   └── env_handler.py
-|   |
-|   └── main.py
-|
-├── README.md
-└── .env
 
